@@ -92,6 +92,10 @@
 			label = "secure-boot";
 			reg = <0x000000000 0x8000>;
 		};
+		provision_partition: partition@7F00 {
+			label = "provision";
+			reg = <0x00007F00 0x00000100>;
+		};
 		b1_s0_partition: partition@8000 {
 			label = "s0";
 			reg = <0x8000 0x4000>;
@@ -102,11 +106,7 @@
 		};
 		app_partition: partition@10000 {
 			label = "app";
-			reg = <0x10000 0x000EF000>;
-		};
-		provision_partition: partition@EF000 {
-			label = "provision";
-			reg = <0x000EF000 0x00001000>;
+			reg = <0x10000 0x000FF000>;
 		};
 	};
 };
