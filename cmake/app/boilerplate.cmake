@@ -379,7 +379,9 @@ Enable Qemu supported ethernet driver like e1000 at drivers/ethernet")
   endif()
 endif()
 
-zephyr_library_named(app)
+if(NOT "${IMAGE}" MATCHES "NK_.*")
+  zephyr_library_named(app)
+endif()
 
 add_subdirectory(${ZEPHYR_BASE} ${__build_dir})
 
