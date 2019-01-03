@@ -107,7 +107,7 @@ foreach(target flash debug debugserver attach)
     WORKING_DIRECTORY ${APPLICATION_BINARY_DIR}
     )
 
-  add_custom_target(${target}
+  add_custom_target(${IMAGE}${target}
     COMMAND
     ${cmd}
     COMMENT

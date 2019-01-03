@@ -1,6 +1,6 @@
 
 # Find out if we are optimizing for size
-get_target_property(zephyr_COMPILE_OPTIONS zephyr_interface INTERFACE_COMPILE_OPTIONS)
+get_target_property(zephyr_COMPILE_OPTIONS ${IMAGE}zephyr_interface INTERFACE_COMPILE_OPTIONS)
 if ("-Os" IN_LIST zephyr_COMPILE_OPTIONS)
   zephyr_cc_option(-mpreferred-stack-boundary=2)
 else()
@@ -131,9 +131,9 @@ add_dependencies(irq_int_vector_map irq_int_vector_map_o)
 add_dependencies(staticIdt          staticIdt_o)
 add_dependencies(irq_vectors_alloc  irq_vectors_alloc_o)
 
-set_property(GLOBAL APPEND PROPERTY GENERATED_KERNEL_OBJECT_FILES irq_int_vector_map)
-set_property(GLOBAL APPEND PROPERTY GENERATED_KERNEL_OBJECT_FILES staticIdt)
-set_property(GLOBAL APPEND PROPERTY GENERATED_KERNEL_OBJECT_FILES irq_vectors_alloc)
+set_property(GLOBAL APPEND PROPERTY ${IMAGE}GENERATED_KERNEL_OBJECT_FILES irq_int_vector_map)
+set_property(GLOBAL APPEND PROPERTY ${IMAGE}GENERATED_KERNEL_OBJECT_FILES staticIdt)
+set_property(GLOBAL APPEND PROPERTY ${IMAGE}GENERATED_KERNEL_OBJECT_FILES irq_vectors_alloc)
 
 if(CONFIG_X86_MMU)
   # Use gen_mmu.py and objcopy to generate mmu_tables.o from from the
@@ -184,7 +184,7 @@ if(CONFIG_X86_MMU)
   add_library(        mmu_tables STATIC IMPORTED GLOBAL)
   set_property(TARGET mmu_tables PROPERTY IMPORTED_LOCATION ${CMAKE_CURRENT_BINARY_DIR}/mmu_tables.o)
   add_dependencies(   mmu_tables mmu_tables_o)
-  set_property(GLOBAL APPEND PROPERTY GENERATED_KERNEL_OBJECT_FILES mmu_tables)
+  set_property(GLOBAL APPEND PROPERTY ${IMAGE}GENERATED_KERNEL_OBJECT_FILES mmu_tables)
 endif()
 
 if(CONFIG_GDT_DYNAMIC)
@@ -222,5 +222,5 @@ if(CONFIG_GDT_DYNAMIC)
   add_library(        gdt STATIC IMPORTED GLOBAL)
   set_property(TARGET gdt PROPERTY IMPORTED_LOCATION ${CMAKE_CURRENT_BINARY_DIR}/gdt.o)
   add_dependencies(   gdt gdt_o)
-  set_property(GLOBAL APPEND PROPERTY GENERATED_KERNEL_OBJECT_FILES gdt)
+  set_property(GLOBAL APPEND PROPERTY ${IMAGE}GENERATED_KERNEL_OBJECT_FILES gdt)
 endif()

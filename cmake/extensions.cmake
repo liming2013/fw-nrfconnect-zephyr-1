@@ -54,7 +54,7 @@ function(zephyr_sources)
       message(FATAL_ERROR "zephyr_sources() was called on a directory")
     endif()
 
-    target_sources(zephyr PRIVATE ${path})
+    target_sources(${IMAGE}zephyr PRIVATE ${path})
   endforeach()
 endfunction()
 
@@ -66,7 +66,7 @@ function(zephyr_include_directories)
     else()
       set(path ${CMAKE_CURRENT_SOURCE_DIR}/${arg})
     endif()
-    target_include_directories(zephyr_interface INTERFACE ${path})
+    target_include_directories(${IMAGE}zephyr_interface INTERFACE ${path})
   endforeach()
 endfunction()
 
@@ -78,42 +78,56 @@ function(zephyr_system_include_directories)
     else()
       set(path ${CMAKE_CURRENT_SOURCE_DIR}/${arg})
     endif()
-    target_include_directories(zephyr_interface SYSTEM INTERFACE ${path})
+    target_include_directories(${IMAGE}zephyr_interface SYSTEM INTERFACE ${path})
   endforeach()
 endfunction()
 
 # https://cmake.org/cmake/help/latest/command/target_compile_definitions.html
 function(zephyr_compile_definitions)
-  target_compile_definitions(zephyr_interface INTERFACE ${ARGV})
+  target_compile_definitions(${IMAGE}zephyr_interface INTERFACE ${ARGV})
 endfunction()
 
 # https://cmake.org/cmake/help/latest/command/target_compile_options.html
 function(zephyr_compile_options)
-  target_compile_options(zephyr_interface INTERFACE ${ARGV})
+  target_compile_options(${IMAGE}zephyr_interface INTERFACE ${ARGV})
 endfunction()
 
 # https://cmake.org/cmake/help/latest/command/target_link_libraries.html
 function(zephyr_link_libraries)
-  target_link_libraries(zephyr_interface INTERFACE ${ARGV})
+  target_link_libraries(${IMAGE}zephyr_interface INTERFACE ${ARGV})
 endfunction()
 
 # See this file section 3.1. target_cc_option
 function(zephyr_cc_option)
   foreach(arg ${ARGV})
-    target_cc_option(zephyr_interface INTERFACE ${arg})
+    target_cc_option(${IMAGE}zephyr_interface INTERFACE ${arg})
   endforeach()
 endfunction()
 
+function(zephyr_add_multi_image)
+  get_property(MULTI_IMAGE GLOBAL PROPERTY MULTI_IMAGE)
+  if(NOT MULTI_IMAGE)
+    set_property(GLOBAL PROPERTY MULTI_IMAGE 1)
+  else()
+    MATH(EXPR incremented_multi_image "${MULTI_IMAGE}+1")
+    set_property(GLOBAL PROPERTY MULTI_IMAGE ${incremented_multi_image})
+  endif()
+  get_property(MULTI_IMAGE GLOBAL PROPERTY MULTI_IMAGE)
+  set_property(GLOBAL PROPERTY IMAGE ${MULTI_IMAGE}_)
+  message("MULTI IMAGE" ${MULTI_IMAGE})
+endfunction()
+
+
 function(zephyr_cc_option_fallback option1 option2)
-    target_cc_option_fallback(zephyr_interface INTERFACE ${option1} ${option2})
+    target_cc_option_fallback(${IMAGE}zephyr_interface INTERFACE ${option1} ${option2})
 endfunction()
 
 function(zephyr_ld_options)
-    target_ld_options(zephyr_interface INTERFACE ${ARGV})
+    target_ld_options(${IMAGE}zephyr_interface INTERFACE ${ARGV})
 endfunction()
 
 # Getter functions for extracting build information from
-# zephyr_interface. Returning lists, and strings is supported, as is
+# ${IMAGE}zephyr_interface. Returning lists, and strings is supported, as is
 # requesting specific categories of build information (defines,
 # includes, options).
 #
@@ -181,7 +195,7 @@ function(zephyr_get_compile_options_for_lang_as_string lang i)
 endfunction()
 
 function(zephyr_get_include_directories_for_lang lang i)
-  get_property_and_add_prefix(flags zephyr_interface INTERFACE_INCLUDE_DIRECTORIES
+  get_property_and_add_prefix(flags ${IMAGE}zephyr_interface INTERFACE_INCLUDE_DIRECTORIES
     "-I"
     ${ARGN}
     )
@@ -192,7 +206,7 @@ function(zephyr_get_include_directories_for_lang lang i)
 endfunction()
 
 function(zephyr_get_system_include_directories_for_lang lang i)
-  get_property_and_add_prefix(flags zephyr_interface INTERFACE_SYSTEM_INCLUDE_DIRECTORIES
+  get_property_and_add_prefix(flags ${IMAGE}zephyr_interface INTERFACE_SYSTEM_INCLUDE_DIRECTORIES
     "-isystem"
     ${ARGN}
     )
@@ -203,7 +217,7 @@ function(zephyr_get_system_include_directories_for_lang lang i)
 endfunction()
 
 function(zephyr_get_compile_definitions_for_lang lang i)
-  get_property_and_add_prefix(flags zephyr_interface INTERFACE_COMPILE_DEFINITIONS
+  get_property_and_add_prefix(flags ${IMAGE}zephyr_interface INTERFACE_COMPILE_DEFINITIONS
     "-D"
     ${ARGN}
     )
@@ -214,7 +228,7 @@ function(zephyr_get_compile_definitions_for_lang lang i)
 endfunction()
 
 function(zephyr_get_compile_options_for_lang lang i)
-  get_property(flags TARGET zephyr_interface PROPERTY INTERFACE_COMPILE_OPTIONS)
+  get_property(flags TARGET ${IMAGE}zephyr_interface PROPERTY INTERFACE_COMPILE_OPTIONS)
 
   process_flags(${lang} flags output_list)
 
@@ -353,17 +367,17 @@ endmacro()
 macro(zephyr_library_named name)
   # This is a macro because we need add_library() to be executed
   # within the scope of the caller.
-  set(ZEPHYR_CURRENT_LIBRARY ${name})
-  add_library(${name} STATIC "")
+  set(ZEPHYR_CURRENT_LIBRARY ${IMAGE}${name})
+  add_library(${ZEPHYR_CURRENT_LIBRARY} STATIC "")
 
-  zephyr_append_cmake_library(${name})
+  zephyr_append_cmake_library(${ZEPHYR_CURRENT_LIBRARY})
 
-  target_link_libraries(${name} PUBLIC zephyr_interface)
+  target_link_libraries(${ZEPHYR_CURRENT_LIBRARY} PUBLIC ${IMAGE}zephyr_interface)
 endmacro()
 
 
 function(zephyr_link_interface interface)
-  target_link_libraries(${interface} INTERFACE zephyr_interface)
+  target_link_libraries(${interface} INTERFACE ${IMAGE}zephyr_interface)
 endfunction()
 
 #
@@ -393,8 +407,8 @@ function(zephyr_library_compile_options item)
   # library and link with it to obtain the flags.
   #
   # Linking with a dummy interface library will place flags later on
-  # the command line than the the flags from zephyr_interface because
-  # zephyr_interface will be the first interface library that flags
+  # the command line than the the flags from ${IMAGE}zephyr_interface because
+  # ${IMAGE}zephyr_interface will be the first interface library that flags
   # are taken from.
 
   string(RANDOM random)
@@ -423,7 +437,7 @@ endfunction()
 # not use a zephyr library constructor, but have source files that
 # need to be included in the build.
 function(zephyr_append_cmake_library library)
-  set_property(GLOBAL APPEND PROPERTY ZEPHYR_LIBS ${library})
+  set_property(GLOBAL APPEND PROPERTY ${IMAGE}ZEPHYR_LIBS ${library})
 endfunction()
 
 # 1.2.1 zephyr_interface_library_*
@@ -452,8 +466,10 @@ endfunction()
 # This API has a constructor like the zephyr_library API has, but it
 # does not have wrappers over the other cmake target functions.
 macro(zephyr_interface_library_named name)
-  add_library(${name} INTERFACE)
-  set_property(GLOBAL APPEND PROPERTY ZEPHYR_INTERFACE_LIBS ${name})
+  add_library(${IMAGE}${name} INTERFACE)
+  set_property(GLOBAL APPEND PROPERTY
+    ${IMAGE}ZEPHYR_INTERFACE_LIBS
+    ${IMAGE}${name})
 endmacro()
 
 # 1.3 generate_inc_*
@@ -930,7 +946,7 @@ endfunction()
 
 function(zephyr_link_interface_ifdef feature_toggle interface)
   if(${${feature_toggle}})
-    target_link_libraries(${interface} INTERFACE zephyr_interface)
+    target_link_libraries(${interface} INTERFACE ${IMAGE}zephyr_interface)
   endif()
 endfunction()
 

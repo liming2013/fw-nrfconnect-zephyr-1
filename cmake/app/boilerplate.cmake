@@ -29,44 +29,76 @@ if(NOT (${CMAKE_VERSION} VERSION_LESS "3.13.0"))
   # scripts have been ported to the new behaviour.
   # CMP0079: "target_link_libraries() allows use with targets in other directories"
   cmake_policy(SET CMP0079 OLD)
+
+get_property(MULTI_IMAGE GLOBAL PROPERTY MULTI_IMAGE)
+get_property(IMAGE GLOBAL PROPERTY IMAGE)
+
+if(MULTI_IMAGE)
+  set(FIRST_BOILERPLATE_EXECUTION 0)
+else()
+  set(FIRST_BOILERPLATE_EXECUTION 1)
 endif()
 
-define_property(GLOBAL PROPERTY ZEPHYR_LIBS
-    BRIEF_DOCS "Global list of all Zephyr CMake libs that should be linked in"
-    FULL_DOCS  "Global list of all Zephyr CMake libs that should be linked in.
-zephyr_library() appends libs to this list.")
-set_property(GLOBAL PROPERTY ZEPHYR_LIBS "")
 
-define_property(GLOBAL PROPERTY ZEPHYR_INTERFACE_LIBS
-    BRIEF_DOCS "Global list of all Zephyr interface libs that should be linked in."
-    FULL_DOCS  "Global list of all Zephyr interface libs that should be linked in.
-zephyr_interface_library_named() appends libs to this list.")
-set_property(GLOBAL PROPERTY ZEPHYR_INTERFACE_LIBS "")
+if(FIRST_BOILERPLATE_EXECUTION)
+  set(IMAGE 0_)
+  set(IMAGE_ALIAS)
+else()
+  set(IMAGE_ALIAS ${IMAGE})
+  # Clear the Kconfig namespace of the other image.
+  # Since the CMake context of each subsequent image is loaded by "add_subdirectory"
+  # the Kconfig namespace is automatically restored by CMake.
+  get_cmake_property(names VARIABLES)
+  foreach (name ${names})
+    if("${name}" MATCHES "^CONFIG_")
+      # When a variable starts with 'CONFIG_' it is assumed to be a
+      # Kconfig symbol.
+      unset(${name})
+    endif()
+  endforeach()
+endif(FIRST_BOILERPLATE_EXECUTION)
 
-define_property(GLOBAL PROPERTY GENERATED_KERNEL_OBJECT_FILES
+# TODO: These are global properties, so they must be converted to
+# image-global because they could be de-referenced in generator
+# expressions.
+define_property(GLOBAL PROPERTY ${IMAGE}ZEPHYR_LIBS
+    BRIEF_DOCS "Image-global list of all Zephyr CMake libs that should be linked in"
+    FULL_DOCS  "Image-global list of all Zephyr CMake libs that should be linked in")
+set_property(GLOBAL PROPERTY ${IMAGE}ZEPHYR_LIBS "")
+
+define_property(GLOBAL PROPERTY ${IMAGE}ZEPHYR_INTERFACE_LIBS
+    BRIEF_DOCS "Image-global list of all Zephyr interface libs that should be linked in."
+    FULL_DOCS  "Image-global list of all Zephyr interface libs that should be linked in.")
+set_property(GLOBAL PROPERTY ${IMAGE}ZEPHYR_INTERFACE_LIBS "")
+
+define_property(GLOBAL PROPERTY ${IMAGE}GENERATED_KERNEL_OBJECT_FILES
   BRIEF_DOCS "Object files that are generated after Zephyr has been linked once."
   FULL_DOCS "\
 Object files that are generated after Zephyr has been linked once.\
 May include mmu tables, etc."
   )
-set_property(GLOBAL PROPERTY GENERATED_KERNEL_OBJECT_FILES "")
+set_property(GLOBAL PROPERTY ${IMAGE}GENERATED_KERNEL_OBJECT_FILES "")
 
-define_property(GLOBAL PROPERTY GENERATED_KERNEL_SOURCE_FILES
+define_property(GLOBAL PROPERTY ${IMAGE}GENERATED_KERNEL_SOURCE_FILES
   BRIEF_DOCS "Source files that are generated after Zephyr has been linked once."
   FULL_DOCS "\
 Source files that are generated after Zephyr has been linked once.\
 May include isr_tables.c etc."
   )
-set_property(GLOBAL PROPERTY GENERATED_KERNEL_SOURCE_FILES "")
+set_property(GLOBAL PROPERTY ${IMAGE}GENERATED_KERNEL_SOURCE_FILES "")
 
-set(APPLICATION_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR} CACHE PATH "Application Source Directory")
-set(APPLICATION_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR} CACHE PATH "Application Binary Directory")
+# TODO: This might be okay as mutable global, we'll see.
+# TODO: Is it safe to take this out of the cache?
+set(APPLICATION_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+set(APPLICATION_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
+
+message(STATUS "Using application from '${APPLICATION_SOURCE_DIR}'")
 
 set(__build_dir ${CMAKE_CURRENT_BINARY_DIR}/zephyr)
 
 set(PROJECT_BINARY_DIR ${__build_dir})
 
-add_custom_target(code_data_relocation_target)
+add_custom_target(${IMAGE}code_data_relocation_target)
 
 # CMake's 'project' concept has proven to not be very useful for Zephyr
 # due in part to how Zephyr is organized and in part to it not fitting well
@@ -111,122 +143,128 @@ if(${CMAKE_CURRENT_SOURCE_DIR} STREQUAL ${CMAKE_CURRENT_BINARY_DIR})
  Please specify a build directory, e.g. cmake -Bbuild -H.")
 endif()
 
-add_custom_target(
-  pristine
-  COMMAND ${CMAKE_COMMAND} -P ${ZEPHYR_BASE}/cmake/pristine.cmake
-  # Equivalent to rm -rf build/*
-  )
+if(FIRST_BOILERPLATE_EXECUTION)
+  add_custom_target(
+    pristine
+    COMMAND ${CMAKE_COMMAND} -P ${ZEPHYR_BASE}/cmake/pristine.cmake
+    # Equivalent to rm -rf build/*
+	)
 
-# The BOARD can be set by 3 sources. Through environment variables,
-# through the cmake CLI, and through CMakeLists.txt.
-#
-# CLI has the highest precedence, then comes environment variables,
-# and then finally CMakeLists.txt.
-#
-# A user can ignore all the precedence rules if he simply always uses
-# the same source. E.g. always specifies -DBOARD= on the command line,
-# always has an environment variable set, or always has a set(BOARD
-# foo) line in his CMakeLists.txt and avoids mixing sources.
-#
-# The selected BOARD can be accessed through the variable 'BOARD'.
+  # The BOARD can be set by 3 sources. Through environment variables,
+  # through the cmake CLI, and through CMakeLists.txt.
+  #
+  # CLI has the highest precedence, then comes environment variables,
+  # and then finally CMakeLists.txt.
+  #
+  # A user can ignore all the precedence rules if he simply always uses
+  # the same source. E.g. always specifies -DBOARD= on the command line,
+  # always has an environment variable set, or always has a set(BOARD
+  # foo) line in his CMakeLists.txt and avoids mixing sources.
+  #
+  # The selected BOARD can be accessed through the variable 'BOARD'.
 
-# Read out the cached board value if present
-get_property(cached_board_value CACHE BOARD PROPERTY VALUE)
+  # Read out the cached board value if present
+  get_property(cached_board_value CACHE BOARD PROPERTY VALUE)
 
-# There are actually 4 sources, the three user input sources, and the
-# previously used value (CACHED_BOARD). The previously used value has
-# precedence, and if we detect that the user is trying to change the
-# value we give him a warning about needing to clean the build
-# directory to be able to change boards.
+  # There are actually 4 sources, the three user input sources, and the
+  # previously used value (CACHED_BOARD). The previously used value has
+  # precedence, and if we detect that the user is trying to change the
+  # value we give him a warning about needing to clean the build
+  # directory to be able to change boards.
 
-set(board_cli_argument ${cached_board_value}) # Either new or old
-if(board_cli_argument STREQUAL CACHED_BOARD)
-  # We already have a CACHED_BOARD so there is no new input on the CLI
-  unset(board_cli_argument)
-endif()
+  set(board_cli_argument ${cached_board_value}) # Either new or old
+  if(board_cli_argument STREQUAL CACHED_BOARD)
+    # We already have a CACHED_BOARD so there is no new input on the CLI
+    unset(board_cli_argument)
+  endif()
 
-set(board_app_cmake_lists ${BOARD})
-if(cached_board_value STREQUAL BOARD)
-  # The app build scripts did not set a default, The BOARD we are
-  # reading is the cached value from the CLI
-  unset(board_app_cmake_lists)
-endif()
+  set(board_app_cmake_lists ${BOARD})
+  if(cached_board_value STREQUAL BOARD)
+    # The app build scripts did not set a default, The BOARD we are
+    # reading is the cached value from the CLI
+    unset(board_app_cmake_lists)
+  endif()
 
-if(CACHED_BOARD)
-  # Warn the user if it looks like he is trying to change the board
-  # without cleaning first
-  if(board_cli_argument)
-    if(NOT (CACHED_BOARD STREQUAL board_cli_argument))
-      message(WARNING "The build directory must be cleaned pristinely when changing boards")
-      # TODO: Support changing boards without requiring a clean build
+  if(CACHED_BOARD)
+    # Warn the user if it looks like he is trying to change the board
+    # without cleaning first
+    if(board_cli_argument)
+      if(NOT (CACHED_BOARD STREQUAL board_cli_argument))
+        message(WARNING "The build directory must be cleaned pristinely when changing boards")
+        # TODO: Support changing boards without requiring a clean build
+      endif()
     endif()
+
+
+    set(BOARD ${CACHED_BOARD})
+  elseif(board_cli_argument)
+    set(BOARD ${board_cli_argument})
+
+  elseif(DEFINED ENV{BOARD})
+    set(BOARD $ENV{BOARD})
+
+  elseif(board_app_cmake_lists)
+    set(BOARD ${board_app_cmake_lists})
+
+  else()
+    message(FATAL_ERROR "BOARD is not being defined on the CMake command-line in the environment or by the app.")
   endif()
 
-  set(BOARD ${CACHED_BOARD})
-elseif(board_cli_argument)
-  set(BOARD ${board_cli_argument})
+  assert(BOARD "BOARD not set")
+  message(STATUS "Selected BOARD ${BOARD}")
 
-elseif(DEFINED ENV{BOARD})
-  set(BOARD $ENV{BOARD})
+  # Store the selected board in the cache
+  set(CACHED_BOARD ${BOARD} CACHE STRING "Selected board")
 
-elseif(board_app_cmake_lists)
-  set(BOARD ${board_app_cmake_lists})
+  # 'BOARD_ROOT' is a prioritized list of directories where boards may
+  # be found. It always includes ${ZEPHYR_BASE} at the lowest priority.
+  list(APPEND BOARD_ROOT ${ZEPHYR_BASE})
 
-else()
-  message(FATAL_ERROR "BOARD is not being defined on the CMake command-line in the environment or by the app.")
-endif()
-
-assert(BOARD "BOARD not set")
-message(STATUS "Selected BOARD ${BOARD}")
-
-# Store the selected board in the cache
-set(CACHED_BOARD ${BOARD} CACHE STRING "Selected board")
-
-# 'BOARD_ROOT' is a prioritized list of directories where boards may
-# be found. It always includes ${ZEPHYR_BASE} at the lowest priority.
-list(APPEND BOARD_ROOT ${ZEPHYR_BASE})
-
-if(NOT SOC_ROOT)
-  set(SOC_DIR ${ZEPHYR_BASE}/soc)
-else()
-  set(SOC_DIR ${SOC_ROOT}/soc)
-endif()
-
-# Use BOARD to search for a '_defconfig' file.
-# e.g. zephyr/boards/arm/96b_carbon_nrf51/96b_carbon_nrf51_defconfig.
-# When found, use that path to infer the ARCH we are building for.
-foreach(root ${BOARD_ROOT})
-  # NB: find_path will return immediately if the output variable is
-  # already set
-  find_path(BOARD_DIR
-    NAMES ${BOARD}_defconfig
-    PATHS ${root}/boards/*/*
-    NO_DEFAULT_PATH
-    )
-  if(BOARD_DIR AND NOT (${root} STREQUAL ${ZEPHYR_BASE}))
-    set(USING_OUT_OF_TREE_BOARD 1)
+  if(NOT SOC_ROOT)
+    set(SOC_DIR ${ZEPHYR_BASE}/soc)
+  else()
+    set(SOC_DIR ${SOC_ROOT}/soc)
   endif()
-endforeach()
 
-if(NOT BOARD_DIR)
-  message("No board named '${BOARD}' found")
-  print_usage()
-  unset(CACHED_BOARD CACHE)
-  message(FATAL_ERROR "Invalid usage")
-endif()
+  # Use BOARD to search for a '_defconfig' file.
+  # e.g. zephyr/boards/arm/96b_carbon_nrf51/96b_carbon_nrf51_defconfig.
+  # When found, use that path to infer the ARCH we are building for.
+  foreach(root ${BOARD_ROOT})
+    # NB: find_path will return immediately if the output variable is
+    # already set
+    find_path(BOARD_DIR
+      NAMES ${BOARD}_defconfig
+      PATHS ${root}/boards/*/*
+      NO_DEFAULT_PATH
+      )
+    if(BOARD_DIR AND NOT (${root} STREQUAL ${ZEPHYR_BASE}))
+      set(USING_OUT_OF_TREE_BOARD 1)
+    endif()
+  endforeach()
 
-get_filename_component(BOARD_ARCH_DIR ${BOARD_DIR}      DIRECTORY)
-get_filename_component(BOARD_FAMILY   ${BOARD_DIR}      NAME)
-get_filename_component(ARCH           ${BOARD_ARCH_DIR} NAME)
+  if(NOT BOARD_DIR)
+    message("No board named '${BOARD}' found")
+    print_usage()
+    unset(CACHED_BOARD CACHE)
+    message(FATAL_ERROR "Invalid usage")
+  endif()
 
-if(CONF_FILE)
-  # CONF_FILE has either been specified on the cmake CLI or is already
-  # in the CMakeCache.txt. This has precedence over the environment
-  # variable CONF_FILE and the default prj.conf
-elseif(DEFINED ENV{CONF_FILE})
-  set(CONF_FILE $ENV{CONF_FILE})
+  get_filename_component(BOARD_ARCH_DIR ${BOARD_DIR}      DIRECTORY)
+  get_filename_component(BOARD_FAMILY   ${BOARD_DIR}      NAME)
+  get_filename_component(ARCH           ${BOARD_ARCH_DIR} NAME)
 
-elseif(COMMAND set_conf_file)
+
+endif(FIRST_BOILERPLATE_EXECUTION)
+
+# if(CONF_FILE)
+#   # CONF_FILE has either been specified on the cmake CLI or is already
+#   # in the CMakeCache.txt. This has precedence over the environment
+#   # variable CONF_FILE and the default prj.conf
+# elseif(DEFINED ENV{CONF_FILE})
+#   set(CONF_FILE $ENV{CONF_FILE})
+
+# TODO: two images can't set this as this is organized today.
+if(COMMAND set_conf_file)
   set_conf_file()
 
 elseif(EXISTS   ${APPLICATION_SOURCE_DIR}/prj_${BOARD}.conf)
@@ -241,13 +279,14 @@ the configuration settings specified in an alternate .conf file using this param
 These settings will override the settings in the application’s .config file or its default .conf file.\
 Multiple files may be listed, e.g. CONF_FILE=\"prj1.conf prj2.conf\"")
 
-if(DTC_OVERLAY_FILE)
-  # DTC_OVERLAY_FILE has either been specified on the cmake CLI or is already
-  # in the CMakeCache.txt. This has precedence over the environment
-  # variable DTC_OVERLAY_FILE
-elseif(DEFINED ENV{DTC_OVERLAY_FILE})
-  set(DTC_OVERLAY_FILE $ENV{DTC_OVERLAY_FILE})
-elseif(EXISTS          ${APPLICATION_SOURCE_DIR}/${BOARD}.overlay)
+# TODO: Support setting overlay's
+# if(DTC_OVERLAY_FILE)
+#   # DTC_OVERLAY_FILE has either been specified on the cmake CLI or is already
+#   # in the CMakeCache.txt. This has precedence over the environment
+#   # variable DTC_OVERLAY_FILE
+# elseif(DEFINED ENV{DTC_OVERLAY_FILE})
+#   set(DTC_OVERLAY_FILE $ENV{DTC_OVERLAY_FILE})
+if(EXISTS          ${APPLICATION_SOURCE_DIR}/${BOARD}.overlay)
   set(DTC_OVERLAY_FILE ${APPLICATION_SOURCE_DIR}/${BOARD}.overlay)
 endif()
 
@@ -257,38 +296,39 @@ alternate .overlay file using this parameter. These settings will override the \
 settings in the board's .dts file. Multiple files may be listed, e.g. \
 DTC_OVERLAY_FILE=\"dts1.overlay dts2.overlay\"")
 
-# Prevent CMake from testing the toolchain
-set(CMAKE_C_COMPILER_FORCED   1)
-set(CMAKE_CXX_COMPILER_FORCED 1)
+if(FIRST_BOILERPLATE_EXECUTION) 
+  # Prevent CMake from testing the toolchain
+  set(CMAKE_C_COMPILER_FORCED   1)
+  set(CMAKE_CXX_COMPILER_FORCED 1)
 
-include(${ZEPHYR_BASE}/cmake/host-tools.cmake)
+  include(${ZEPHYR_BASE}/cmake/host-tools.cmake)
 
-# DTS should be close to kconfig because CONFIG_ variables from
-# kconfig and dts should be available at the same time.
-#
-# The DT system uses a C preprocessor for it's code generation needs.
-# This creates an awkward chicken-and-egg problem, because we don't
-# always know exactly which toolchain the user needs until we know
-# more about the target, e.g. after DT and Kconfig.
-#
-# To resolve this we find "some" C toolchain, configure it generically
-# with the minimal amount of configuration needed to have it
-# preprocess DT sources, and then, after we have finished processing
-# both DT and Kconfig we complete the target-specific configuration,
-# and possibly change the toolchain.
-include(${ZEPHYR_BASE}/cmake/generic_toolchain.cmake)
-include(${ZEPHYR_BASE}/cmake/kconfig.cmake)
+  # DTS should be close to kconfig because CONFIG_ variables from
+  # kconfig and dts should be available at the same time.
+  #
+  # The DT system uses a C preprocessor for it's code generation needs.
+  # This creates an awkward chicken-and-egg problem, because we don't
+  # always know exactly which toolchain the user needs until we know
+  # more about the target, e.g. after DT and Kconfig.
+  #
+  # To resolve this we find "some" C toolchain, configure it generically
+  # with the minimal amount of configuration needed to have it
+  # preprocess DT sources, and then, after we have finished processing
+  # both DT and Kconfig we complete the target-specific configuration,
+  # and possibly change the toolchain.
+  include(${ZEPHYR_BASE}/cmake/generic_toolchain.cmake)
+  include(${ZEPHYR_BASE}/cmake/kconfig.cmake)
 
-set(SOC_NAME   ${CONFIG_SOC})
-set(SOC_SERIES ${CONFIG_SOC_SERIES})
-set(SOC_FAMILY ${CONFIG_SOC_FAMILY})
+  set(SOC_NAME   ${CONFIG_SOC})
+  set(SOC_SERIES ${CONFIG_SOC_SERIES})
+  set(SOC_FAMILY ${CONFIG_SOC_FAMILY})
 
-if("${SOC_SERIES}" STREQUAL "")
-  set(SOC_PATH ${SOC_NAME})
-else()
-  set(SOC_PATH ${SOC_FAMILY}/${SOC_SERIES})
-endif()
-
+  if("${SOC_SERIES}" STREQUAL "")
+    set(SOC_PATH ${SOC_NAME})
+  else()
+    set(SOC_PATH ${SOC_FAMILY}/${SOC_SERIES})
+  endif()
+endif(FIRST_BOILERPLATE_EXECUTION)
 include(${ZEPHYR_BASE}/cmake/dts.cmake)
 
 include(${ZEPHYR_BASE}/cmake/target_toolchain.cmake)
@@ -341,9 +381,11 @@ endif()
 # modified by the entry point ${APPLICATION_SOURCE_DIR}/CMakeLists.txt
 # that was specified when cmake was called.
 zephyr_library_named(app)
-set_property(TARGET app PROPERTY ARCHIVE_OUTPUT_DIRECTORY app)
+set_property(TARGET ${IMAGE}app PROPERTY ARCHIVE_OUTPUT_DIRECTORY ${IMAGE}app)
 
 add_subdirectory(${ZEPHYR_BASE} ${__build_dir})
+
+#TODO: Everything below here.
 
 # Link 'app' with the Zephyr interface libraries.
 #
@@ -352,7 +394,7 @@ add_subdirectory(${ZEPHYR_BASE} ${__build_dir})
 # done after 'add_subdirectory(${ZEPHYR_BASE} ${__build_dir})'
 # because interface libraries are defined while processing that
 # subdirectory.
-get_property(ZEPHYR_INTERFACE_LIBS_PROPERTY GLOBAL PROPERTY ZEPHYR_INTERFACE_LIBS)
+get_property(ZEPHYR_INTERFACE_LIBS_PROPERTY GLOBAL PROPERTY ${IMAGE}ZEPHYR_INTERFACE_LIBS)
 foreach(boilerplate_lib ${ZEPHYR_INTERFACE_LIBS_PROPERTY})
   # Linking 'app' with 'boilerplate_lib' causes 'app' to inherit the INTERFACE
   # properties of 'boilerplate_lib'. The most common property is 'include
@@ -362,7 +404,7 @@ foreach(boilerplate_lib ${ZEPHYR_INTERFACE_LIBS_PROPERTY})
   string(TOUPPER ${boilerplate_lib} boilerplate_lib_upper_case) # Support lowercase lib names
   target_link_libraries_ifdef(
     CONFIG_APP_LINK_WITH_${boilerplate_lib_upper_case}
-    app
+    ${IMAGE}app
     PUBLIC
     ${boilerplate_lib}
     )

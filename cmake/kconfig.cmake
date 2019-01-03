@@ -4,7 +4,12 @@ file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/kconfig/include/generated)
 file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/kconfig/include/config)
 file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/include/generated)
 
-if(KCONFIG_ROOT)
+# A user set KCONFIG_ROOT, which is an alias of 0_KCONFIG_ROOT
+if(DEFINED KCONFIG_ROOT)
+  set(0_KCONFIG_ROOT ${KCONFIG_ROOT})
+endif()
+
+if(${IMAGE}KCONFIG_ROOT)
   # KCONFIG_ROOT has either been specified as a CMake variable or is
   # already in the CMakeCache.txt. This has precedence.
 elseif(EXISTS   ${APPLICATION_SOURCE_DIR}/Kconfig)
@@ -32,7 +37,7 @@ set(ENV{BOARD_DIR} ${BOARD_DIR})
 set(ENV{SOC_DIR}   ${SOC_DIR})
 
 add_custom_target(
-  menuconfig
+  ${IMAGE}menuconfig
   ${CMAKE_COMMAND} -E env
   PYTHON_EXECUTABLE=${PYTHON_EXECUTABLE}
   srctree=${ZEPHYR_BASE}
@@ -164,7 +169,7 @@ foreach(merge_config_input ${merge_config_files} ${DOTCONFIG})
   set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${merge_config_input})
 endforeach()
 
-add_custom_target(config-sanitycheck DEPENDS ${DOTCONFIG})
+add_custom_target(${IMAGE}config-sanitycheck DEPENDS ${DOTCONFIG})
 
 # Remove the CLI Kconfig symbols from the namespace and
 # CMakeCache.txt. If the symbols end up in DOTCONFIG they will be

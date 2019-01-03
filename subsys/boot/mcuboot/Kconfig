@@ -1,0 +1,7 @@
+if BOOTLOADER_MCUBOOT
+
+config MCUBOOT_CMAKELISTS_DIR
+	string "Path to the directory of the MCUBoot CMakeLists.txt file"
+	default "$MCUBOOT_BASE/boot/zephyr/"
+
+endif # BOOTLOADER_MCUBOOT
