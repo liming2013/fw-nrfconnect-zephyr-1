@@ -449,6 +449,7 @@ if(FIRST_BOILERPLATE_EXECUTION)
       GLOBAL PROPERTY
       PARTITION_MANAGER_CONFIG_TARGETS
       )
+    file(GLOB_RECURSE autoconf_files "${PROJECT_BINARY_DIR}/**/autoconf.h")
     add_custom_target(
       PARTITION_MANAGER_TARGET
       # For every input_file
@@ -456,7 +457,10 @@ if(FIRST_BOILERPLATE_EXECUTION)
       ${PYTHON_EXECUTABLE}
       ${ZEPHYR_BASE}/scripts/partition_manager.py
       -i ${partition_manager_config_files}
+      -c ${autoconf_files}
       -o override.h
+      --app-override-file ${PROJECT_BINARY_DIR}/include/generated/override.h
+      -s 1048576
       DEPENDS
       ${partition_manager_config_targets}
       )

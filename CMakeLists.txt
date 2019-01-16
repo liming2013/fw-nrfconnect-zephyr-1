@@ -419,11 +419,12 @@ function(construct_add_custom_command_for_linker_pass linker_output_name output_
     set(linker_pass_define -DLINKER_PASS2)
   elseif (${linker_output_name} MATCHES "^linker$")
     if(EXISTS ${APPLICATION_SOURCE_DIR}/pm.yaml)
-      set(partition_manager_target PARTITION_MANAGER_TARGET)
-      set(lol -DUSE_PARTITION_MANAGER)
-      # TODO Do ${IMAGE} on PROPERTY_LINKER_SCRIPT_DEFINES to avoid having
-      # custom variable here.
-      #      set_property(GLOBAL APPEND PROPERTY PROPERTY_LINKER_SCRIPT_DEFINES -DUSE_PARTITION_MANAGER)
+      set_property(GLOBAL PROPERTY PROPERTY_PARTITION_MANAGER_TARGET
+        PARTITION_MANAGER_TARGET)
+      # Duplicates are removed before this list is used.
+      set_property(GLOBAL APPEND PROPERTY
+        PROPERTY_LINKER_SCRIPT_DEFINES
+        -DUSE_PARTITION_MANAGER)
     endif()
   else()
     set(linker_pass_define "")
@@ -448,6 +449,9 @@ function(construct_add_custom_command_for_linker_pass linker_output_name output_
   zephyr_get_include_directories_for_lang(C current_includes)
   get_filename_component(base_name ${CMAKE_CURRENT_BINARY_DIR} NAME)
   get_property(current_defines GLOBAL PROPERTY PROPERTY_LINKER_SCRIPT_DEFINES)
+  get_property(partition_manager_target GLOBAL PROPERTY
+    PROPERTY_PARTITION_MANAGER_TARGET)
+  list(REMOVE_DUPLICATES current_includes)
 
   set(${output_variable}
     OUTPUT ${linker_cmd_file_name}
@@ -461,7 +465,6 @@ function(construct_add_custom_command_for_linker_pass linker_output_name output_
     ${current_includes}
     ${current_defines}
     ${linker_pass_define}
-    ${lol}
     -E ${LINKER_SCRIPT}
     -P # Prevent generation of debug `#line' directives.
     -o ${linker_cmd_file_name}
