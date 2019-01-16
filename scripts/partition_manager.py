@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: LicenseRef-BSD-5-Clause-Nordic
 
 import argparse
-import json
+import yaml
 import re
 from os import path
 
@@ -24,7 +24,9 @@ def resolve_dependincies(adr_map, to_check=None):
         if to_check and img != to_check:
             continue
         address_config = adr_map[img]['address']
-        if address_config.startswith('before') or address_config.startswith('after'):
+        if type(address_config) == int:
+            continue
+        elif address_config.startswith('before') or address_config.startswith('after'):
             dep = address_config.split(' ')[1]
             # Invoke recursively to ensure all dependencies resolved
             resolve_dependincies(adr_map, dep)
@@ -43,7 +45,7 @@ def resolve_dependincies(adr_map, to_check=None):
 def generate_override(input_files, output_file_name):
     adr_map = dict()
     for f in input_files:
-        img_conf = json.load(f)
+        img_conf = yaml.safe_load(f)
         img_conf[list(img_conf.keys())[0]]['out_path'] = path.join(path.dirname(f.name), output_file_name)
         adr_map.update(img_conf)
 

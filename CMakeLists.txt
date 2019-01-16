@@ -418,7 +418,7 @@ function(construct_add_custom_command_for_linker_pass linker_output_name output_
   if (${linker_output_name} MATCHES "^linker_pass_final$")
     set(linker_pass_define -DLINKER_PASS2)
   elseif (${linker_output_name} MATCHES "^linker$")
-    if(EXISTS ${APPLICATION_SOURCE_DIR}/pm.json)
+    if(EXISTS ${APPLICATION_SOURCE_DIR}/pm.yaml)
       set(partition_manager_target PARTITION_MANAGER_TARGET)
       set(lol -DUSE_PARTITION_MANAGER)
       # TODO Do ${IMAGE} on PROPERTY_LINKER_SCRIPT_DEFINES to avoid having

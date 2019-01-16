@@ -399,11 +399,11 @@ set_property(TARGET ${IMAGE}app PROPERTY ARCHIVE_OUTPUT_DIRECTORY ${IMAGE}app)
 
 add_subdirectory(${ZEPHYR_BASE} ${__build_dir})
 
-if(EXISTS ${APPLICATION_SOURCE_DIR}/pm.json)
+if(EXISTS ${APPLICATION_SOURCE_DIR}/pm.yaml)
   zephyr_get_include_directories_for_lang(C current_includes)
   get_property(current_defines GLOBAL PROPERTY PROPERTY_LINKER_SCRIPT_DEFINES)
   set(pre_partition_mananger_conf
-    ${PROJECT_BINARY_DIR}/include/generated/pm.json.pre)
+    ${PROJECT_BINARY_DIR}/include/generated/pm.yaml.pre)
   set(partition_manager_conf_target ${IMAGE}pm_conf_target)
   add_custom_command(
     OUTPUT ${pre_partition_mananger_conf}
@@ -413,7 +413,7 @@ if(EXISTS ${APPLICATION_SOURCE_DIR}/pm.json)
     ${NOSYSDEF_CFLAG}
     ${current_includes}
     ${current_defines}
-    -E ${APPLICATION_SOURCE_DIR}/pm.json
+    -E ${APPLICATION_SOURCE_DIR}/pm.yaml
     -P # Prevent generation of debug `#line' directives.
     ${partition_manager_override_include}
     -o ${pre_partition_mananger_conf}
