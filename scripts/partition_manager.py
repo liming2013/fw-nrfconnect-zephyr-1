@@ -132,7 +132,10 @@ def write_override_files(adr_map):
     for img, conf in adr_map.items():
         open(conf['out_path'], 'w').write('''\
 #undef CONFIG_FLASH_BASE_ADDRESS
-#define CONFIG_FLASH_BASE_ADDRESS %s''' % hex(conf['address']))
+#define CONFIG_FLASH_BASE_ADDRESS %s
+#undef CONFIG_FLASH_LOAD_SIZE
+#define CONFIG_FLASH_LOAD_SIZE %s
+''' % (hex(conf['address']), hex(conf['size'])))
 
 
 def generate_override(input_files, output_file_name, flash_size, configs, app_override_file):
