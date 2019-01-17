@@ -93,8 +93,8 @@ def get_size_configs(configs):
 
 def load_size_config(adr_map, configs):
     size_configs = get_size_configs(configs)
-    for k, v in adr_map.keys():
-        if 'size' not in v.keys():
+    for k, v in adr_map.items():
+        if 'size' not in v.keys() and k != 'app':
             adr_map[k]['size'] = size_configs[k]
 
 
@@ -153,7 +153,7 @@ def parse_args():
                         help="List of JSON formatted config files. See tests in this file for examples.")
     parser.add_argument("-c", "--configs", type=argparse.FileType('r', encoding='UTF-8'), nargs="+",
                         help="List of paths to generated 'autoconf.h' files.")
-    parser.add_argument("-s", "--flash-size", help="Size of flash of device.")
+    parser.add_argument("-s", "--flash-size", type=int, help="Size of flash of device.")
     parser.add_argument("-o", "--output", help="Output file name. Will be stored in same dir as input.")
     parser.add_argument("--app-override-file", help="Path to root app override.h file path.")
 
