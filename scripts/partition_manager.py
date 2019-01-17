@@ -15,83 +15,69 @@ def remove_item_not_in_list(list_to_remove_from, list_to_check):
         if x not in list_to_check and x != 'app':
             list_to_remove_from.remove(x)
 
-def after_before(x_dict, to_check, after_before):
-    return type(x_dict['placement']) == dict and \
-                after_before in x_dict['placement'].keys() and \
-                x_dict['placement'][after_before][0] == to_check
+
+def after_before(d, item, ab):
+    assert(ab in ['after', 'before'])
+    return type(d['placement']) == dict and ab in d['placement'].keys() and d['placement'][ab][0] == item
 
 
-def resolve(reqs, flash_size):
-    solution = list(['app'])
-
+def remove_irrelevant_requirements(reqs):
     [[remove_item_not_in_list(reqs[x]['placement'][before_after], reqs.keys())
       for x in reqs.keys() if type(reqs[x]['placement']) == dict
       and before_after in reqs[x]['placement'].keys()]
      for before_after in ['before', 'after']]
 
-    unsolved = [x for x in reqs.keys() if type(reqs[x]['placement']) == dict and
-                ('before' in reqs[x]['placement'].keys() or
-                 'after' in reqs[x]['placement'].keys())]
 
+def get_images_which_needs_resolving(reqs):
+    return [x for x in reqs.keys() if type(reqs[x]['placement']) == dict and ('before' in reqs[x]['placement'].keys() or
+            'after' in reqs[x]['placement'].keys())]
+
+
+def solve_direction(reqs, unsolved, solution, ab):
+    assert(ab in ['after', 'before'])
+    current = 'app'
+    cont = len(unsolved) > 0
+    while cont:
+        depends = [x for x in reqs.keys() if after_before(reqs[x], current, ab)]
+        if depends:
+            assert(len(depends) == 1)
+            if ab == 'before':
+                solution.insert(solution.index(current), depends[0])
+            else:
+                solution.insert(solution.index(current) + 1, depends[0])
+            current = depends[0]
+            unsolved.remove(current)
+        else:
+            cont = False
+
+
+def solve_from_last(reqs, unsolved, solution):
     last = [x for x in reqs.keys() if type(reqs[x]['placement']) == str and reqs[x]['placement'] == 'last']
     if last:
         assert(len(last) == 1)
         solution.append(last[0])
         current = last[0]
-        more_deps = True
-        while more_deps:
-            next = [x for x in reqs.keys() if after_before(reqs[x], current, 'before')]
-            if next:
-                solution.insert(solution.index(current), next[0])
-                current = next[0]
+        cont = True
+        while cont:
+            depends = [x for x in reqs.keys() if after_before(reqs[x], current, ab='before')]
+            if depends:
+                solution.insert(solution.index(current), depends[0])
+                current = depends[0]
                 unsolved.remove(current)
-
             else:
-                more_deps = False
+                cont = False
 
-    current = 'app'
-    more_deps = True
-    while more_deps:
-        next = [x for x in reqs.keys() if after_before(reqs[x], current, 'before')]
-        if next:
-            assert(len(next) == 1)
-            current = next[0]
-            unsolved.remove(current)
-            solution.insert(0, current)
-        else:
-            more_deps = False
 
-    current = 'app'
-    more_deps = len(unsolved) > 0
-    while more_deps:
-        next = [x for x in reqs.keys() if after_before(reqs[x], current, 'after')]
-        if next:
-            assert (len(next) == 1)
-            current = next[0]
-            unsolved.remove(current)
-            solution.append(current)
-        else:
-            more_deps = False
+def resolve(reqs):
+    solution = list(['app'])
+    remove_irrelevant_requirements(reqs)
+    unsolved = get_images_which_needs_resolving(reqs)
 
-    # First image starts at 0
-    reqs[solution[0]]['address'] = 0
-    for i in range(1, len(solution)):
-        current = solution[i]
-        previous = solution[i-1]
-        if current == 'app':
-            reqs['app'] = dict()
-            reqs['app']['placement'] = ''
-        if reqs[current]['placement'] == 'last':
-            reqs[current]['address'] = flash_size - reqs[current]['size']
-        else:
-            if previous != 'app':
-                reqs[current]['address'] = reqs[previous]['address'] + reqs[previous]['size']
+    solve_from_last(reqs, unsolved, solution)
+    solve_direction(reqs, unsolved, solution, 'before')
+    solve_direction(reqs, unsolved, solution, 'after')
 
-    if solution.index('app') == len(solution) - 1:
-        reqs['app']['size'] = flash_size - reqs['app']['address']  # App is at the back
-    else:
-        address_of_image_after_app = reqs[solution[solution.index('app') + 1]]['address']
-        reqs['app']['size'] = address_of_image_after_app - reqs['app']['address']
+    return solution
 
 
 def get_size_configs(configs):
@@ -112,23 +98,50 @@ def load_size_config(adr_map, configs):
             adr_map[k]['size'] = size_configs[k]
 
 
-def load_adr_map(adr_map, input_files, output_file_name):
+def load_adr_map(adr_map, input_files, output_file_name, app_override_file):
     for f in input_files:
         img_conf = yaml.safe_load(f)
         img_conf[list(img_conf.keys())[0]]['out_path'] = path.join(path.dirname(f.name), output_file_name)
         adr_map.update(img_conf)
-
-
-def generate_override(input_files, output_file_name, flash_size, configs, app_override_file):
-    adr_map = dict()
-    load_adr_map(adr_map, input_files, output_file_name)
-    load_size_config(adr_map, configs)
-    resolve(adr_map, flash_size)
+    adr_map['app'] = dict()
+    adr_map['app']['placement'] = ''
     adr_map['app']['out_path'] = app_override_file
+
+
+def set_addresses(reqs, solution, flash_size):
+    # First image starts at 0
+    reqs[solution[0]]['address'] = 0
+    for i in range(1, solution.index('app') + 1):
+        current = solution[i]
+        previous = solution[i - 1]
+        reqs[current]['address'] = reqs[previous]['address'] + reqs[previous]['size']
+
+    has_image_after_app = len(solution) > solution.index('app') + 1
+    if has_image_after_app:
+        reqs[solution[-1]]['address'] = flash_size - reqs[solution[-1]]['size']
+        for i in range(len(solution) - 2, solution.index('app'), -1):
+            current = solution[i]
+            previous = solution[i + 1]
+            reqs[current]['address'] = reqs[previous]['address'] - reqs[current]['size']
+        reqs['app']['size'] = reqs[solution[solution.index('app') + 1]]['address'] - reqs['app']['address']
+    else:
+        reqs['app']['size'] = flash_size - reqs['app']['address']
+
+
+def write_override_files(adr_map):
     for img, conf in adr_map.items():
         open(conf['out_path'], 'w').write('''\
 #undef CONFIG_FLASH_BASE_ADDRESS
 #define CONFIG_FLASH_BASE_ADDRESS %s''' % hex(conf['address']))
+
+
+def generate_override(input_files, output_file_name, flash_size, configs, app_override_file):
+    adr_map = dict()
+    load_adr_map(adr_map, input_files, output_file_name, app_override_file)
+    load_size_config(adr_map, configs)
+    solution = resolve(adr_map)
+    set_addresses(adr_map, solution, flash_size)
+    write_override_files(adr_map)
 
 
 def parse_args():
@@ -150,33 +163,44 @@ def parse_args():
 
 
 def test():
-    test_0 = {
+    td = {
         'e': {'placement': {'before': ['app']}, 'size': 100},
         'a': {'placement': {'before': ['b']}, 'size': 100},
         'd': {'placement': {'before': ['e']}, 'size': 100},
         'c': {'placement': {'before': ['d']}, 'size': 100},
-        'h': {'placement': 'last', 'size': 20},
-        'f': {'placement': {'before': ['g']}, 'size': 20},
-        'g': {'placement': {'before': ['h']}, 'size': 20},
-        'b': {'placement': {'before': ['c']}, 'size': 20}}
-    resolve(test_0, flash_size=1000)
+        'j': {'placement': 'last', 'size': 20},
+        'i': {'placement': {'before': ['j']}, 'size': 20},
+        'h': {'placement': {'before': ['i']}, 'size': 20},
+        'f': {'placement': {'after': ['app']}, 'size': 20},
+        'g': {'placement': {'after': ['f']}, 'size': 20},
+        'b': {'placement': {'before': ['c']}, 'size': 20},
+        'app': {'placement': ''}}
+    s = resolve(td)
+    set_addresses(td, s, 1000)
 
-    test_2 = {'mcuboot': {'placement': {'before': ['app', 'spu']}, 'size': 200},
-              'b0': {'placement': {'before': ['mcuboot', 'app']}, 'size': 100}}
-    resolve(test_2, flash_size=1000)
+    td = {'mcuboot': {'placement': {'before': ['app', 'spu']}, 'size': 200},
+          'b0': {'placement': {'before': ['mcuboot', 'app']}, 'size': 100},
+          'app': {'placement': ''}}
+    s = resolve(td)
+    set_addresses(td, s, 1000)
 
-    test_3 = {'b0': {'placement': {'before': ['mcuboot', 'app']}, 'size': 100}}
-    resolve(test_3, flash_size=1000)
+    td = {'b0': {'placement': {'before': ['mcuboot', 'app']}, 'size': 100}, 'app': {'placement': ''}}
+    s = resolve(td)
+    set_addresses(td, s, 1000)
 
-    test_4 = {'spu': {'placement': {'before': ['app']}, 'size': 100},
-              'mcuboot': {'placement': {'before': ['spu', 'app']}, 'size': 200}}
-    resolve(test_4, flash_size=1000)
+    td = {'spu': {'placement': {'before': ['app']}, 'size': 100},
+          'mcuboot': {'placement': {'before': ['spu', 'app']}, 'size': 200},
+          'app': {'placement': ''}}
+    s = resolve(td)
+    set_addresses(td, s, 1000)
 
-    test_5 = {'provision': {'placement': 'last', 'size': 100},
-              'mcuboot': {'placement': {'before': ['spu', 'app']}, 'size': 100},
-              'b0': {'placement': {'before': ['mcuboot', 'app']}, 'size': 50},
-              'spu': {'placement': {'before': ['app']}, 'size': 100}}
-    resolve(test_5, flash_size=1000)
+    td = {'provision': {'placement': 'last', 'size': 100},
+          'mcuboot': {'placement': {'before': ['spu', 'app']}, 'size': 100},
+          'b0': {'placement': {'before': ['mcuboot', 'app']}, 'size': 50},
+          'spu': {'placement': {'before': ['app']}, 'size': 100},
+          'app': {'placement': ''}}
+    s = resolve(td)
+    set_addresses(td, s, 1000)
     pass
 
 
