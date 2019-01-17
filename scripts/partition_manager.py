@@ -16,9 +16,9 @@ def remove_item_not_in_list(list_to_remove_from, list_to_check):
             list_to_remove_from.remove(x)
 
 
-def after_before(d, item, ab):
-    assert(ab in ['after', 'before'])
-    return type(d['placement']) == dict and ab in d['placement'].keys() and d['placement'][ab][0] == item
+def item_is_placed(d, item, after_or_before):
+    assert(after_or_before in ['after', 'before'])
+    return type(d['placement']) == dict and after_or_before in d['placement'].keys() and d['placement'][after_or_before][0] == item
 
 
 def remove_irrelevant_requirements(reqs):
@@ -38,7 +38,7 @@ def solve_direction(reqs, unsolved, solution, ab):
     current = 'app'
     cont = len(unsolved) > 0
     while cont:
-        depends = [x for x in reqs.keys() if after_before(reqs[x], current, ab)]
+        depends = [x for x in reqs.keys() if item_is_placed(reqs[x], current, ab)]
         if depends:
             assert(len(depends) == 1)
             if ab == 'before':
@@ -59,7 +59,7 @@ def solve_from_last(reqs, unsolved, solution):
         current = last[0]
         cont = True
         while cont:
-            depends = [x for x in reqs.keys() if after_before(reqs[x], current, ab='before')]
+            depends = [x for x in reqs.keys() if item_is_placed(reqs[x], current, after_or_before='before')]
             if depends:
                 solution.insert(solution.index(current), depends[0])
                 current = depends[0]
